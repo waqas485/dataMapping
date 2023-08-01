@@ -14,6 +14,7 @@ async function recordCount() {
             products.name
               FROM [dbo].[product_media]
               INNER JOIN products ON product_media.product_id = products.id
+              ORDER BY
     ) t`
     );
     return count
@@ -71,9 +72,11 @@ module.exports = async (req, res, next) => {
             for (let i = 0; i < formatedArray.length; i++) {
                 promises.push(P_LIMIT(() => getData(formatedArray[i].url, formatedArray[i])))
             }
+            let done = 0;
             async function getData(url, obj) {
                 try {
                     const fetchRes = await fetch(url)
+                    console.log('These are done count',done++);
                     return { status: fetchRes?.status, ...obj }
                 } catch (error) {
                 }
