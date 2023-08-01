@@ -24,7 +24,6 @@
     "promise-limit": "^2.7.0",
     "sequelize": "^6.32.1",
     "sequelize-typescript": "^2.1.5",
-    "sqlite3": "^5.1.6",
-    "tedious": "^16.2.0"
+    "sqlite3": "^5.1.6"
   }
 }
