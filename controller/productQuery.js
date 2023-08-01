@@ -16,8 +16,7 @@ async function recordCount() {
               INNER JOIN products ON product_media.product_id = products.id
               ORDER BY
               product_id
-              OFFSET 0 ROWS 
-          FETCH NEXT 1000 ROWS ONLY
+
     ) t`
     );
     return count
