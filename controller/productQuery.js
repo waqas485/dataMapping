@@ -15,6 +15,9 @@ async function recordCount() {
               FROM [dbo].[product_media]
               INNER JOIN products ON product_media.product_id = products.id
               ORDER BY
+              product_id
+              OFFSET 0 ROWS 
+          FETCH NEXT 1000 ROWS ONLY
     ) t`
     );
     return count
@@ -52,12 +55,18 @@ module.exports = async (req, res, next) => {
         try {
             ///// Format all urls by condition and making new array here
             let formatedArray = []
+            let pid
             for (let obj of results) {
+                // if (obj.url.includes('http://res.cloudinary.com')) {
+                //     pid = obj.product_id
+                //     console.log(pid);
+                // }
                 if (
                     !obj.url.includes('www.electrical.com') &&
                     !obj.url.includes('www.widespreadsales.com') &&
-                    obj.suffix != null && obj.suffix != ''
+                    typeof(obj.suffix) !== (null || undefined || "")
                 ) {
+                    // if(pid == obj.product_id){console.log(true)}else{console.log(false,obj)}
                     obj.url = `https://www.electrical.com/img/${encodeURIComponent(encodeURIComponent(obj.name))}-${obj.suffix}.jpg`
                     formatedArray.push(obj)
                 }
@@ -66,8 +75,6 @@ module.exports = async (req, res, next) => {
                 }
             }
 
-            let arr = []
-            const imageFectRes = [];
             const promises = [];
             for (let i = 0; i < formatedArray.length; i++) {
                 promises.push(P_LIMIT(() => getData(formatedArray[i].url, formatedArray[i])))
@@ -76,7 +83,7 @@ module.exports = async (req, res, next) => {
             async function getData(url, obj) {
                 try {
                     const fetchRes = await fetch(url)
-                    console.log('These are done count',done++);
+                    console.log('These are done count', done++);
                     return { status: fetchRes?.status, ...obj }
                 } catch (error) {
                 }
