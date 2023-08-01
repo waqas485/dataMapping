@@ -1,4 +1,4 @@
-const connectDb = require("./config/db");
+//const connectDb = require("./config/db");
 const express = require('express');
 const cors = require('cors')
 const expressBusboy = require('express-busboy');
@@ -9,7 +9,7 @@ const { ApolloServer } = require('apollo-server');
 const router = require('./routes/routes')
 require('dotenv').config();
 
-connectDb();
+//connectDb();
 app.use(cors({
     origin: '*'
 }));
@@ -29,4 +29,4 @@ const server = new ApolloServer({
 });
 
 
-server.listen(process.env.PORT, () => console.log(`🛸 Server is running on the port ${process.env.PORT || 8001}`))
+//server.listen(process.env.PORT, () => console.log(`🛸 Server is running on the port ${process.env.PORT || 8001}`))
