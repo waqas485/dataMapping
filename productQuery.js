@@ -15,12 +15,14 @@ async function recordCount() {
                 products.name
                   FROM [dbo].[product_media]
                   INNER JOIN products ON product_media.product_id = products.id
-    
+
+
+
         ) t`
     return count.recordset[0].Counted
 }
 
- async function run() {
+async function run() {
     let count = await recordCount();
     let finalCount = count
     let WRITE_CHUNK_SIZE = 1000
@@ -34,7 +36,7 @@ async function recordCount() {
     async function dbAuth(offset, fetchCall, filename) {
         let pool = await sql.connect(sqlConfig)
         const result = await pool.request().query
-        `SELECT ALL
+            `SELECT ALL
         product_media.suffix,
         product_media.product_id,
         product_media.url,
@@ -74,10 +76,17 @@ async function recordCount() {
                     console.log('These are done count', done++);
                     return { status: fetchRes?.status, ...obj }
                 } catch (error) {
+                    if (error) {
+                        return { status: 408, ...obj }
+                    }
+                    console.log('This is error...........', error);
                 }
             }
-            const response = await Promise.all(promises);
 
+            const response = await Promise.all(promises);
+            //    let data = response.filter(function( element ) {
+            //         return (element !== undefined && element !== null)
+            //      });
             async function conversion(response) {
                 const csv = new ObjectsToCsv(response);
                 await csv.toDisk(`./${filename}.csv`);
