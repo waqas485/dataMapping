@@ -25,7 +25,7 @@ async function recordCount() {
 async function run() {
     let count = await recordCount();
     let finalCount = count
-    let WRITE_CHUNK_SIZE = 1000
+    let WRITE_CHUNK_SIZE = 10000
     let fileCount = 0
     for (let skip = 0; skip < finalCount; skip += WRITE_CHUNK_SIZE) {
         let offset = skip;
