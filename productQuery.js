@@ -77,7 +77,7 @@ async function run() {
                     return { status: fetchRes?.status, ...obj }
                 } catch (error) {
                     if (error) {
-                        return { status: 408, ...obj }
+                        return { status: 404, ...obj }
                     }
                     console.log('This is error...........', error);
                 }
