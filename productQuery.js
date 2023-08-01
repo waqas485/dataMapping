@@ -1,4 +1,3 @@
-
 const sqlConfig = require('./config/mssql')
 const sql = require('mssql')
 var promiseLimit = require('promise-limit')
@@ -21,7 +20,7 @@ async function recordCount() {
     return count.recordset[0].Counted
 }
 
-module.exports = async (req, res, next) => {
+ async function run() {
     let count = await recordCount();
     let finalCount = count
     let WRITE_CHUNK_SIZE = 1000
@@ -92,3 +91,4 @@ module.exports = async (req, res, next) => {
 
 
 }
+run();
