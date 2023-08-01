@@ -1,5 +1,5 @@
 
-const sqlConfig = require('../config/mssql')
+const sqlConfig = require('./config/mssql')
 const sql = require('mssql')
 var promiseLimit = require('promise-limit')
 const P_LIMIT = promiseLimit(10);
