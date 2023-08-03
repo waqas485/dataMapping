@@ -2,30 +2,35 @@ const sqlConfig = require('./config/mssql')
 const fs = require('fs')
 const sql = require('mssql')
 var promiseLimit = require('promise-limit')
-const P_LIMIT = promiseLimit(10);
+const P_LIMIT = promiseLimit(5);
 const csvMerger = require('csv-merger');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
-fs.rmSync("./file.csv", {
-    force: true,
-});
+const data = require('./data')
+// fs.rmSync("./file.csv", {
+//     force: true,
+// });
 
 const csvWriter = createCsvWriter({
     path: './file.csv',
     header: [
         { id: 'suffix', title: 'suffix' },
         { id: 'product_id', title: 'product_id' },
-        { id: 'url', title: 'url' },
         { id: 'name', title: 'name' },
-        { id: 'status', title: 'status' }
+        { id: 'dbURL', title: 'dbURL' },
+        { id: 'dbStatus', title: 'dbStatus' },
+        { id: 'formatedURL', title: 'formatedURL' },
+        { id: 'formatedStatus', title: 'formatedStatus' }
     ],
     append: true
 });
 let obj = {
     suffix: 'suffix',
     product_id: 'product_id',
-    url: 'url',
     name: 'name',
-    status: 'status'
+    dbURL: 'dbURL',
+    dbStatus: 'dbStatus',
+    formatedURL: 'formatedURL',
+    formatedStatus: 'formatedStatus'
 }
 
 csvWriter.writeRecords([obj])
@@ -46,10 +51,11 @@ async function recordCount() {
                   ORDER BY
                   product_id
                   OFFSET 0 ROWS 
-              FETCH NEXT 10000 ROWS ONLY
+              FETCH NEXT 2000 ROWS ONLY
 
         ) t`
     return count.recordset[0].Counted
+    //return data.length
 
 }
 
@@ -73,28 +79,41 @@ async function writeCsvRecords(all) {
 }
 ////////////// get data
 let done = 0
-async function getData(url, obj, count) {
+async function getData(dbURL, formatedURL, obj, count) {
     try {
-        const fetchRes = await fetch(url)
         console.log('These are done count here ******', done++);
-        return { status: fetchRes?.status, ...obj }
+        if (formatedURL !== '') {
+            const fetchRes1 = await fetch(dbURL)
+            const fetchRes2 = await fetch(formatedURL)
+            return { dbStatus: fetchRes1?.status, formatedStatus: fetchRes2?.status, ...obj }
+        } else {
+            const fetchRes1 = await fetch(dbURL)
+            //console.log(fetchRes1?.status,'*******************88');
+            return { dbStatus: fetchRes1?.status, formatedStatus: '', ...obj }
+        }
+
     } catch (error) {
         if (error) {
             await waitFor((count * 1000) + 3000);
             count = Number(count) + 1
             if (count < 4) {
-                await getData(url, obj, count);
+                await getData(dbURL, formatedURL, obj, count);
             }
-            return { status: 408, ...obj }
+            if (formatedURL !== '') {
+                return { formatedStatus: 408, dbStatus: 408, ...obj }
+            } else {
+                return { formatedStatus: '', dbStatus: 408, ...obj }
+            }
+
+            //return { formatedStatus: 408, dbStatus: 408, ...obj }
         }
     }
 }
 
 async function retry(faultedArray) {
-    totalFaulty += faultedArray.length
     let pArray = []
     for (let i = 0; i < faultedArray.length; i++) {
-        pArray.push(P_LIMIT(() => getData(faultedArray[i].url, faultedArray[i], 0)));
+        pArray.push(P_LIMIT(() => getData(faultedArray[i].dbURL, faultedArray[i].formatedURL, faultedArray[i], 0)));
     }
     const response = await Promise.all(pArray);
     await writeCsvRecords(response)
@@ -120,34 +139,48 @@ async function dbAuth(offset, fetchCall) {
         ///// Format all urls by condition and making new array here
         let results = result.recordset
         let formatedArray = []
+        //let results = data
         for (let obj of results) {
             if (
                 !obj.url.includes('www.electrical.com') &&
                 !obj.url.includes('www.widespreadsales.com') &&
                 typeof (obj.suffix) !== (null || undefined || "")
             ) {
-                obj.url = `https://www.electrical.com/img/${encodeURIComponent(encodeURIComponent(obj.name))}-${obj.suffix}.jpg`
+                obj.dbURL = obj.url
+                obj.formatedURL = `https://www.electrical.com/img/${encodeURIComponent(encodeURIComponent(obj.name))}-${obj.suffix}.jpg`
                 formatedArray.push(obj)
-            }
-            else {
+
+            } else {
+                obj.dbURL = obj.url
+                obj.formatedURL = ''
                 formatedArray.push(obj)
+                //console.log(obj,'manuluation***********');
             }
+
         }
         const promises = [];
         for (let i = 0; i < formatedArray.length; i++) {
-            promises.push(P_LIMIT(() => getData(formatedArray[i].url, formatedArray[i], 0)));
+            promises.push(P_LIMIT(() => getData(formatedArray[i].dbURL, formatedArray[i].formatedURL, formatedArray[i], 0)));
         }
         const response = await Promise.all(promises);
-        faultedArray = response.filter((e) => e.status == 408)
-        if(faultedArray.length > 0){
+        //console.log(response,'**********************');
+        faultedArray = response.filter((e) => e.dbStatus == 408 && e.formatedStatus == 408);
+
+        //faulted += faultedArray.length
+        if (faultedArray.length > 0) {
             faultedArray.forEach(e => {
-                delete e.status
+                delete e.dbStatus
+                delete e.formatedStatus
             });
         }
-        let all = response.filter((e) => e.status && e.status !== 408)
+
+        let all = response.filter((e) => e.dbStatus && e.dbStatus !== 408)
         await writeCsvRecords(all);
+        return faultedArray.length
+
     } catch (error) {
         console.log(error);
+
     }
     if (faultedArray.length > 0) {
         await retry(faultedArray);
@@ -159,12 +192,17 @@ async function dbAuth(offset, fetchCall) {
 async function run() {
     let count = await recordCount();
     let finalCount = count
-    let WRITE_CHUNK_SIZE = 1000
+    let WRITE_CHUNK_SIZE = 10
+    let faultedCount = 0
     for (let skip = 0; skip < finalCount; skip += WRITE_CHUNK_SIZE) {
         let offset = skip;
-        let fetchCall = 1000
-        await dbAuth(offset, fetchCall);
+        let fetchCall = 10
+        const count = await dbAuth(offset, fetchCall);
+        faultedCount += count
+
     }
+    console.log(faultedCount, '...................');
+
 
 }
 

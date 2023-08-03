@@ -5,6 +5,7 @@ var promiseLimit = require('promise-limit')
 const P_LIMIT = promiseLimit(10);
 const csvMerger = require('csv-merger');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
+const data = require('./data')
 fs.rmSync("./file.csv", {
     force: true,
 });
@@ -28,6 +29,7 @@ let obj = {
     status: 'status'
 }
 
+let totalFaulty = 0
 csvWriter.writeRecords([obj])
     .then(() => {
         console.log('static record...Done');
@@ -46,11 +48,11 @@ async function recordCount() {
                   ORDER BY
                   product_id
                   OFFSET 0 ROWS 
-              FETCH NEXT 10000 ROWS ONLY
+              FETCH NEXT 10 ROWS ONLY
 
         ) t`
-    return count.recordset[0].Counted
-
+    //return count.recordset[0].Counted
+    return data.length
 }
 
 let faultedArray = [];
@@ -72,17 +74,19 @@ async function writeCsvRecords(all) {
 
 }
 ////////////// get data
-let done = 0
 async function getData(url, obj, count) {
     try {
+        console.log('came here for process***********');
         const fetchRes = await fetch(url)
-        console.log('These are done count here ******', done++);
+        let done = 0
+        console.log('These are done count', fetchRes?.status, done++);
         return { status: fetchRes?.status, ...obj }
     } catch (error) {
         if (error) {
             await waitFor((count * 1000) + 3000);
             count = Number(count) + 1
             if (count < 4) {
+                console.log('this is retry count*********',url,error, count);
                 await getData(url, obj, count);
             }
             return { status: 408, ...obj }
@@ -96,7 +100,11 @@ async function retry(faultedArray) {
     for (let i = 0; i < faultedArray.length; i++) {
         pArray.push(P_LIMIT(() => getData(faultedArray[i].url, faultedArray[i], 0)));
     }
+    for (let i of pArray) {
+        console.log(i, 'faulted array after processed');
+    }
     const response = await Promise.all(pArray);
+    console.log(response,'Retry final write --------------------------------');
     await writeCsvRecords(response)
 }
 
@@ -118,33 +126,37 @@ async function dbAuth(offset, fetchCall) {
   FETCH NEXT ${fetchCall} ROWS ONLY`
     try {
         ///// Format all urls by condition and making new array here
-        let results = result.recordset
+        //let results = result.recordset
+        let results = data
         let formatedArray = []
-        for (let obj of results) {
-            if (
-                !obj.url.includes('www.electrical.com') &&
-                !obj.url.includes('www.widespreadsales.com') &&
-                typeof (obj.suffix) !== (null || undefined || "")
-            ) {
-                obj.url = `https://www.electrical.com/img/${encodeURIComponent(encodeURIComponent(obj.name))}-${obj.suffix}.jpg`
-                formatedArray.push(obj)
-            }
-            else {
-                formatedArray.push(obj)
-            }
-        }
+        // for (let obj of results) {
+        //     if (
+        //         !obj.url.includes('www.electrical.com') &&
+        //         !obj.url.includes('www.widespreadsales.com') &&
+        //         typeof (obj.suffix) !== (null || undefined || "")
+        //     ) {
+        //         obj.url = `https://www.electrical.com/img/${encodeURIComponent(encodeURIComponent(obj.name))}-${obj.suffix}.jpg`
+        //         formatedArray.push(obj)
+        //     }
+        //     else {
+        //         formatedArray.push(obj)
+        //     }
+        // }
+         formatedArray = data
         const promises = [];
         for (let i = 0; i < formatedArray.length; i++) {
+            console.log(formatedArray[i]);
             promises.push(P_LIMIT(() => getData(formatedArray[i].url, formatedArray[i], 0)));
         }
         const response = await Promise.all(promises);
         faultedArray = response.filter((e) => e.status == 408)
         if(faultedArray.length > 0){
-            faultedArray.forEach(e => {
-                delete e.status
-            });
+            faultedArray[0].url = 'https://www.electrical.com/img/3UA6200-2H-63.jpg'
+            delete faultedArray[0].status
+            console.log(faultedArray,'*****************************88faultedArray');
         }
         let all = response.filter((e) => e.status && e.status !== 408)
+        console.log(all,'first all write ***************');
         await writeCsvRecords(all);
     } catch (error) {
         console.log(error);
@@ -159,12 +171,13 @@ async function dbAuth(offset, fetchCall) {
 async function run() {
     let count = await recordCount();
     let finalCount = count
-    let WRITE_CHUNK_SIZE = 1000
+    let WRITE_CHUNK_SIZE = 2
     for (let skip = 0; skip < finalCount; skip += WRITE_CHUNK_SIZE) {
         let offset = skip;
-        let fetchCall = 1000
+        let fetchCall = 2
         await dbAuth(offset, fetchCall);
     }
+    console.log(totalFaulty, '**********************---------------me here');
 
 }
 
