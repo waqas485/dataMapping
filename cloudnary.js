@@ -48,6 +48,7 @@ async function recordCount() {
                 products.name
                   FROM [dbo].[product_media]
                   INNER JOIN products ON product_media.product_id = products.id
+
         ) t`
     return count.recordset[0].Counted
     //return data.length
@@ -89,23 +90,26 @@ async function getData(dbURL, formatedURL, obj, count) {
 
     } catch (error) {
         if (error) {
+            console.log(error,count,'***********************errr');
             await waitFor((count * 1000) + 3000);
             count = Number(count) + 1
+            
             if (count < 4) {
                 await getData(dbURL, formatedURL, obj, count);
             }
-            if (formatedURL !== '') {
-                return { formatedStatus: 408, dbStatus: 408, ...obj }
-            } else {
-                return { formatedStatus: '', dbStatus: 408, ...obj }
-            }
+            // if (formatedURL !== '') {
+            //     return { formatedStatus: 408, dbStatus: 408, ...obj }
+            // } else {
+            //     return { formatedStatus: '', dbStatus: 408, ...obj }
+            // }
 
-            //return { formatedStatus: 408, dbStatus: 408, ...obj }
+            return { formatedStatus: 408, dbStatus: 408, ...obj }
         }
     }
 }
 
 async function retry(faultedArray) {
+    console.log(faultedArray.length,'array came for retry****************88');
     let pArray = []
     for (let i = 0; i < faultedArray.length; i++) {
         pArray.push(P_LIMIT(() => getData(faultedArray[i].dbURL, faultedArray[i].formatedURL, faultedArray[i], 0)));
@@ -160,24 +164,29 @@ async function dbAuth(offset, fetchCall) {
         const response = await Promise.all(promises);
         //console.log(response,'**********************');
         faultedArray = response.filter((e) => e.dbStatus == 408 && e.formatedStatus == 408);
-
+        
+    
         //faulted += faultedArray.length
         if (faultedArray.length > 0) {
             faultedArray.forEach(e => {
                 delete e.dbStatus
                 delete e.formatedStatus
             });
+           
         }
 
         let all = response.filter((e) => e.dbStatus && e.dbStatus !== 408)
         await writeCsvRecords(all);
-        return faultedArray.length
+        //return faultedArray.length
 
     } catch (error) {
         console.log(error);
 
     }
+    
+    console.log(faultedArray.length,'length of faultedArray**********************');
     if (faultedArray.length > 0) {
+        //console.log(faultedArray,'faultedArray**********************');
         await retry(faultedArray);
     }
     faultedArray = [];
@@ -192,11 +201,11 @@ async function run() {
     for (let skip = 0; skip < finalCount; skip += WRITE_CHUNK_SIZE) {
         let offset = skip;
         let fetchCall = 1000
-        const count = await dbAuth(offset, fetchCall);
-        faultedCount += count
+         await dbAuth(offset, fetchCall);
+        //faultedCount += count
 
     }
-    console.log(faultedCount, '...................');
+    //console.log(faultedCount, '...................');
 
 
 }
