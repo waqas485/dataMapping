@@ -4,6 +4,8 @@ const sql = require('mssql')
 var promiseLimit = require('promise-limit')
 const P_LIMIT = promiseLimit(5);
 const csvMerger = require('csv-merger');
+//const fetch = require("node-fetch")
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args))
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const data = require('./data')
 // fs.rmSync("./file.csv", {
