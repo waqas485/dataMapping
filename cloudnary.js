@@ -48,11 +48,6 @@ async function recordCount() {
                 products.name
                   FROM [dbo].[product_media]
                   INNER JOIN products ON product_media.product_id = products.id
-                  ORDER BY
-                  product_id
-                  OFFSET 0 ROWS 
-              FETCH NEXT 2000 ROWS ONLY
-
         ) t`
     return count.recordset[0].Counted
     //return data.length
@@ -192,11 +187,11 @@ async function dbAuth(offset, fetchCall) {
 async function run() {
     let count = await recordCount();
     let finalCount = count
-    let WRITE_CHUNK_SIZE = 10
+    let WRITE_CHUNK_SIZE = 1000
     let faultedCount = 0
     for (let skip = 0; skip < finalCount; skip += WRITE_CHUNK_SIZE) {
         let offset = skip;
-        let fetchCall = 10
+        let fetchCall = 1000
         const count = await dbAuth(offset, fetchCall);
         faultedCount += count
 
