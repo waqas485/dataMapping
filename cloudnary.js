@@ -3,11 +3,8 @@ const fs = require('fs')
 const sql = require('mssql')
 var promiseLimit = require('promise-limit')
 const P_LIMIT = promiseLimit(5);
-const csvMerger = require('csv-merger');
-//const fetch = require("node-fetch")
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args))
+const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args))
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
-const data = require('./data')
 // fs.rmSync("./file.csv", {
 //     force: true,
 // });
@@ -39,6 +36,9 @@ csvWriter.writeRecords([obj])
     .then(() => {
         console.log('static record...Done');
     });
+
+
+/// Function for getting all records count of table
 async function recordCount() {
     let pool = await sql.connect(sqlConfig)
     const count = await pool.request().query
@@ -53,11 +53,11 @@ async function recordCount() {
 
         ) t`
     return count.recordset[0].Counted
-    //return data.length
 
 }
 
 let faultedArray = [];
+
 async function waitFor(sec) {
     return new Promise((resolve) => {
         setTimeout(() => {
@@ -65,6 +65,7 @@ async function waitFor(sec) {
         }, sec)
     })
 }
+/// CVS writer promise
 async function writeCsvRecords(all) {
     return new Promise((resolve) => {
         csvWriter.writeRecords(all)
@@ -75,7 +76,7 @@ async function writeCsvRecords(all) {
     })
 
 }
-////////////// get data
+///// Get data for format all records and fetch with retry
 let done = 0
 async function getData(dbURL, formatedURL, obj, count) {
     try {
@@ -86,32 +87,24 @@ async function getData(dbURL, formatedURL, obj, count) {
             return { dbStatus: fetchRes1?.status, formatedStatus: fetchRes2?.status, ...obj }
         } else {
             const fetchRes1 = await fetch(dbURL)
-            //console.log(fetchRes1?.status,'*******************88');
             return { dbStatus: fetchRes1?.status, formatedStatus: '', ...obj }
         }
 
     } catch (error) {
         if (error) {
-            console.log(error,count,'***********************errr');
             await waitFor((count * 1000) + 3000);
             count = Number(count) + 1
-            
+
             if (count < 4) {
                 await getData(dbURL, formatedURL, obj, count);
             }
-            // if (formatedURL !== '') {
-            //     return { formatedStatus: 408, dbStatus: 408, ...obj }
-            // } else {
-            //     return { formatedStatus: '', dbStatus: 408, ...obj }
-            // }
-
             return { formatedStatus: 408, dbStatus: 408, ...obj }
         }
     }
 }
 
+//// Here will came faulted array with 408 status records for retry fetch
 async function retry(faultedArray) {
-    console.log(faultedArray.length,'array came for retry****************88');
     let pArray = []
     for (let i = 0; i < faultedArray.length; i++) {
         pArray.push(P_LIMIT(() => getData(faultedArray[i].dbURL, faultedArray[i].formatedURL, faultedArray[i], 0)));
@@ -121,7 +114,7 @@ async function retry(faultedArray) {
 }
 
 
-
+////main function
 async function dbAuth(offset, fetchCall) {
     let pool = await sql.connect(sqlConfig)
     const result = await pool.request().query
@@ -140,7 +133,6 @@ async function dbAuth(offset, fetchCall) {
         ///// Format all urls by condition and making new array here
         let results = result.recordset
         let formatedArray = []
-        //let results = data
         for (let obj of results) {
             if (
                 !obj.url.includes('www.electrical.com') &&
@@ -155,7 +147,6 @@ async function dbAuth(offset, fetchCall) {
                 obj.dbURL = obj.url
                 obj.formatedURL = ''
                 formatedArray.push(obj)
-                //console.log(obj,'manuluation***********');
             }
 
         }
@@ -164,37 +155,31 @@ async function dbAuth(offset, fetchCall) {
             promises.push(P_LIMIT(() => getData(formatedArray[i].dbURL, formatedArray[i].formatedURL, formatedArray[i], 0)));
         }
         const response = await Promise.all(promises);
-        //console.log(response,'**********************');
         faultedArray = response.filter((e) => e.dbStatus == 408 && e.formatedStatus == 408);
-        
-    
-        //faulted += faultedArray.length
+
         if (faultedArray.length > 0) {
             faultedArray.forEach(e => {
                 delete e.dbStatus
                 delete e.formatedStatus
             });
-           
+
         }
 
         let all = response.filter((e) => e.dbStatus && e.dbStatus !== 408)
         await writeCsvRecords(all);
-        //return faultedArray.length
 
     } catch (error) {
         console.log(error);
 
     }
-    
-    console.log(faultedArray.length,'length of faultedArray**********************');
+
     if (faultedArray.length > 0) {
-        //console.log(faultedArray,'faultedArray**********************');
         await retry(faultedArray);
     }
     faultedArray = [];
 
 }
-
+//// Script running from here
 async function run() {
     let count = await recordCount();
     let finalCount = count
@@ -203,15 +188,10 @@ async function run() {
     for (let skip = 0; skip < finalCount; skip += WRITE_CHUNK_SIZE) {
         let offset = skip;
         let fetchCall = 1000
-         await dbAuth(offset, fetchCall);
-        //faultedCount += count
+        await dbAuth(offset, fetchCall);  ///This is main function calling
 
     }
-    //console.log(faultedCount, '...................');
-
-
 }
-
 run();
 
 
