@@ -2,12 +2,12 @@ const sqlConfig = require('./config/mssql')
 const fs = require('fs')
 const sql = require('mssql')
 var promiseLimit = require('promise-limit')
-const P_LIMIT = promiseLimit(5);
+const P_LIMIT = promiseLimit(10);
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args))
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
-// fs.rmSync("./file.csv", {
-//     force: true,
-// });
+fs.rmSync("./file.csv", {
+    force: true,
+});
 
 const csvWriter = createCsvWriter({
     path: './file.csv',
@@ -53,6 +53,7 @@ async function recordCount() {
 
         ) t`
     return count.recordset[0].Counted
+    
 
 }
 
@@ -115,8 +116,8 @@ async function retry(faultedArray) {
 
 
 ////main function
-async function dbAuth(offset, fetchCall) {
-    let pool = await sql.connect(sqlConfig)
+async function dbAuth(offset, fetchCall,pool) {
+    //let pool = await sql.connect(sqlConfig)
     const result = await pool.request().query
         `SELECT ALL
     product_media.suffix,
@@ -132,6 +133,7 @@ async function dbAuth(offset, fetchCall) {
     try {
         ///// Format all urls by condition and making new array here
         let results = result.recordset
+        console.log(results.length,'^^^^^^^^^^^^^^^^^^^^^^^^');
         let formatedArray = []
         for (let obj of results) {
             if (
@@ -181,14 +183,17 @@ async function dbAuth(offset, fetchCall) {
 }
 //// Script running from here
 async function run() {
+    let pool = await sql.connect(sqlConfig)
     let count = await recordCount();
+    //console.log(count,'this is ttal count *********************8');
     let finalCount = count
     let WRITE_CHUNK_SIZE = 1000
     let faultedCount = 0
     for (let skip = 0; skip < finalCount; skip += WRITE_CHUNK_SIZE) {
         let offset = skip;
         let fetchCall = 1000
-        await dbAuth(offset, fetchCall);  ///This is main function calling
+        console.log(offset,fetchCall,'this is fetch offset call***********************************');
+        await dbAuth(offset, fetchCall,pool);  ///This is main function calling
 
     }
 }
